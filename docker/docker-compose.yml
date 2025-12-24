@@ -1,0 +1,97 @@
+# =============================================================================
+# Docker Compose - MariaDB 11.8 pour Duplication de Données
+# =============================================================================
+#
+# Ce fichier configure un environnement MariaDB 11.8 complet pour tester
+# les procédures stockées de duplication de données.
+#
+# Utilisation :
+#   - Démarrer  : docker-compose up -d
+#   - Arrêter   : docker-compose down
+#   - Logs      : docker-compose logs -f
+#   - Nettoyer  : docker-compose down -v --rmi all
+#
+# Auteur : Nicolas DEOUX (NDXDev@gmail.com)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Service MariaDB 11.8
+  # ---------------------------------------------------------------------------
+  mariadb:
+    # Image officielle MariaDB version 11.8
+    image: mariadb:11.8
+
+    # Nom du conteneur pour un accès facile
+    container_name: mariadb-duplication
+
+    # Redémarrage automatique sauf si arrêté manuellement
+    restart: unless-stopped
+
+    # Variables d'environnement pour la configuration
+    environment:
+      # Mot de passe root (à modifier en production !)
+      MARIADB_ROOT_PASSWORD: duplication_root_2025
+
+      # Base de données créée automatiquement au démarrage
+      MARIADB_DATABASE: duplication_db
+
+      # Utilisateur applicatif
+      MARIADB_USER: duplication_user
+      MARIADB_PASSWORD: duplication_pass_2025
+
+      # Fuseau horaire
+      TZ: Europe/Paris
+
+    # Ports exposés (host:container)
+    ports:
+      - "3306:3306"
+
+    # Volumes pour la persistance des données
+    volumes:
+      # Volume nommé pour les données MariaDB
+      - mariadb_data:/var/lib/mysql
+
+      # Scripts d'initialisation (exécutés au premier démarrage)
+      - ./init:/docker-entrypoint-initdb.d:ro
+
+      # Configuration personnalisée
+      - ./config/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+
+    # Configuration réseau
+    networks:
+      - duplication_network
+
+    # Vérification de santé du service
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    # Commande personnalisée avec options recommandées
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-buffer-pool-size=256M
+      - --max-connections=100
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --expire-logs-days=7
+
+# -----------------------------------------------------------------------------
+# Volumes nommés
+# -----------------------------------------------------------------------------
+volumes:
+  mariadb_data:
+    name: mariadb-duplication-data
+    driver: local
+
+# -----------------------------------------------------------------------------
+# Réseaux
+# -----------------------------------------------------------------------------
+networks:
+  duplication_network:
+    name: mariadb-duplication-network
+    driver: bridge
